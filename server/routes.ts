@@ -35,7 +35,7 @@ export function registerRoutes(app: Express) {
         if (err) {
           return res.status(500).json({ error: "Error al iniciar sesión" });
         }
-        return res.json({ message: "Usuario registrado correctamente" });
+        return res.json(user);
       });
     } catch (error) {
       return res.status(500).json({ error: "Error al crear el usuario" });
@@ -43,13 +43,21 @@ export function registerRoutes(app: Express) {
   });
 
   app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
-    res.json({ message: "Inicio de sesión exitoso" });
+    res.json(req.user);
   });
 
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", requireAuth, (req, res) => {
     req.logout(() => {
       res.json({ message: "Sesión cerrada" });
     });
+  });
+
+  // Ruta para obtener el usuario actual
+  app.get("/api/user", (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "No autorizado" });
+    }
+    res.json(req.user);
   });
 
   // Rutas protegidas de vocabulario
@@ -72,7 +80,10 @@ export function registerRoutes(app: Express) {
     const word = await storage.addVocabularyWord({
       ...result.data,
       userId: req.user.id,
-    });
+      failedAttempts: 0,
+      learned: false,
+      createdAt: new Date(),
+    } as any);
     res.json(word);
   });
 
@@ -111,7 +122,6 @@ export function registerRoutes(app: Express) {
   app.delete("/api/vocabulary/:id", requireAuth, async (req: any, res) => {
     const id = parseInt(req.params.id);
     try {
-      // Verificar propiedad antes de eliminar
       const word = await storage.findWordByJapanese(req.params.id);
       if (word && word.userId !== req.user.id) {
         return res.status(403).json({ error: "No autorizado" });
