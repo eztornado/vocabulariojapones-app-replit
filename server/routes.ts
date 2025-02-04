@@ -14,12 +14,12 @@ const requireAuth = (req: any, res: any, next: any) => {
 export function registerRoutes(app: Express) {
   // Rutas de autenticación
   app.post("/api/auth/register", async (req, res) => {
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({ error: "Datos de usuario inválidos" });
-    }
-
     try {
+      const result = insertUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: "Datos de usuario inválidos" });
+      }
+
       const existingUser = await storage.getUserByUsername(result.data.username);
       if (existingUser) {
         return res.status(400).json({ error: "El usuario ya existe" });
@@ -31,23 +31,45 @@ export function registerRoutes(app: Express) {
         password: hashedPassword,
       });
 
+      // Login después de registro exitoso
       req.login(user, (err: any) => {
         if (err) {
+          console.error("Error en login después de registro:", err);
+          return res.status(500).json({ error: "Error al iniciar sesión" });
+        }
+        res.status(201).json(user);
+      });
+    } catch (error) {
+      console.error("Error en registro:", error);
+      res.status(500).json({ error: "Error al crear el usuario" });
+    }
+  });
+
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error("Error en autenticación:", err);
+        return res.status(500).json({ error: "Error de autenticación" });
+      }
+      if (!user) {
+        return res.status(401).json({ error: info?.message || "Credenciales inválidas" });
+      }
+      req.login(user, (loginErr: any) => {
+        if (loginErr) {
+          console.error("Error en login:", loginErr);
           return res.status(500).json({ error: "Error al iniciar sesión" });
         }
         return res.json(user);
       });
-    } catch (error) {
-      return res.status(500).json({ error: "Error al crear el usuario" });
-    }
-  });
-
-  app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
-    res.json(req.user);
+    })(req, res, next);
   });
 
   app.post("/api/auth/logout", requireAuth, (req, res) => {
-    req.logout(() => {
+    req.logout((err: any) => {
+      if (err) {
+        console.error("Error en logout:", err);
+        return res.status(500).json({ error: "Error al cerrar sesión" });
+      }
       res.json({ message: "Sesión cerrada" });
     });
   });
