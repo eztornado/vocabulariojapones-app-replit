@@ -5,12 +5,17 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Vocabulary from "@/pages/vocabulary";
 import Practice from "@/pages/practice";
+import AuthPage from "@/pages/auth";
+import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute } from "@/components/protected-route";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Vocabulary} />
-      <Route path="/practice" component={Practice} />
+      <ProtectedRoute path="/" component={Vocabulary} />
+      <ProtectedRoute path="/practice" component={Practice} />
+      {/* La ruta de autenticación no está protegida */}
+      <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -19,8 +24,10 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <AuthProvider>
+        <Router />
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
