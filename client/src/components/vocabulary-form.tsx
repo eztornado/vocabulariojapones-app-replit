@@ -20,7 +20,11 @@ export default function VocabularyForm() {
 
   const mutation = useMutation({
     mutationFn: async (data: { japanese: string; spanish: string }) => {
-      await apiRequest("POST", "/api/vocabulary", data);
+      const response = await apiRequest("POST", "/api/vocabulary", data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vocabulary"] });
@@ -28,6 +32,13 @@ export default function VocabularyForm() {
       toast({
         title: "¡Palabra agregada!",
         description: "La palabra se ha agregado correctamente.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });

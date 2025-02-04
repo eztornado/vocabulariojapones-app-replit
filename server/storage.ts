@@ -7,11 +7,21 @@ export interface IStorage {
   addVocabularyWord(word: InsertVocabularyWord): Promise<VocabularyWord>;
   updateWordStatus(id: number, learned: boolean): Promise<VocabularyWord>;
   incrementFailedAttempts(id: number): Promise<VocabularyWord>;
+  deleteWord(id: number): Promise<void>;
+  findWordByJapanese(japanese: string): Promise<VocabularyWord | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
   async getVocabularyWords(): Promise<VocabularyWord[]> {
     return await db.select().from(vocabularyWords);
+  }
+
+  async findWordByJapanese(japanese: string): Promise<VocabularyWord | undefined> {
+    const [word] = await db
+      .select()
+      .from(vocabularyWords)
+      .where(eq(vocabularyWords.japanese, japanese));
+    return word;
   }
 
   async addVocabularyWord(word: InsertVocabularyWord): Promise<VocabularyWord> {
@@ -53,6 +63,17 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updatedWord;
+  }
+
+  async deleteWord(id: number): Promise<void> {
+    const [deletedWord] = await db
+      .delete(vocabularyWords)
+      .where(eq(vocabularyWords.id, id))
+      .returning();
+
+    if (!deletedWord) {
+      throw new Error("Word not found");
+    }
   }
 }
 
