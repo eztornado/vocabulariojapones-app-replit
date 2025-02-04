@@ -1,4 +1,6 @@
 import { vocabularyWords, type VocabularyWord, type InsertVocabularyWord } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getVocabularyWords(): Promise<VocabularyWord[]>;
@@ -7,48 +9,51 @@ export interface IStorage {
   incrementFailedAttempts(id: number): Promise<VocabularyWord>;
 }
 
-export class MemStorage implements IStorage {
-  private words: Map<number, VocabularyWord>;
-  private currentId: number;
-
-  constructor() {
-    this.words = new Map();
-    this.currentId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
   async getVocabularyWords(): Promise<VocabularyWord[]> {
-    return Array.from(this.words.values());
+    return await db.select().from(vocabularyWords);
   }
 
   async addVocabularyWord(word: InsertVocabularyWord): Promise<VocabularyWord> {
-    const id = this.currentId++;
-    const newWord: VocabularyWord = {
-      ...word,
-      id,
-      failedAttempts: 0,
-      learned: false,
-    };
-    this.words.set(id, newWord);
+    const [newWord] = await db
+      .insert(vocabularyWords)
+      .values(word)
+      .returning();
     return newWord;
   }
 
   async updateWordStatus(id: number, learned: boolean): Promise<VocabularyWord> {
-    const word = this.words.get(id);
-    if (!word) throw new Error("Word not found");
-    
-    const updatedWord = { ...word, learned };
-    this.words.set(id, updatedWord);
+    const [updatedWord] = await db
+      .update(vocabularyWords)
+      .set({ learned })
+      .where(eq(vocabularyWords.id, id))
+      .returning();
+
+    if (!updatedWord) {
+      throw new Error("Word not found");
+    }
+
     return updatedWord;
   }
 
   async incrementFailedAttempts(id: number): Promise<VocabularyWord> {
-    const word = this.words.get(id);
-    if (!word) throw new Error("Word not found");
-    
-    const updatedWord = { ...word, failedAttempts: word.failedAttempts + 1 };
-    this.words.set(id, updatedWord);
+    const [word] = await db
+      .select()
+      .from(vocabularyWords)
+      .where(eq(vocabularyWords.id, id));
+
+    if (!word) {
+      throw new Error("Word not found");
+    }
+
+    const [updatedWord] = await db
+      .update(vocabularyWords)
+      .set({ failedAttempts: word.failedAttempts + 1 })
+      .where(eq(vocabularyWords.id, id))
+      .returning();
+
     return updatedWord;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
