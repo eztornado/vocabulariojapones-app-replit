@@ -1,19 +1,30 @@
-import { vocabularyWords, type VocabularyWord, type InsertVocabularyWord } from "@shared/schema";
+import { users, vocabularyWords, userProgress, type User, type InsertUser, type VocabularyWord, type UserProgress } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getVocabularyWords(): Promise<VocabularyWord[]>;
-  addVocabularyWord(word: InsertVocabularyWord): Promise<VocabularyWord>;
+  // Métodos existentes
+  getVocabularyWords(userId?: number): Promise<VocabularyWord[]>;
+  addVocabularyWord(word: VocabularyWord): Promise<VocabularyWord>;
   updateWordStatus(id: number, learned: boolean): Promise<VocabularyWord>;
   incrementFailedAttempts(id: number): Promise<VocabularyWord>;
   deleteWord(id: number): Promise<void>;
   findWordByJapanese(japanese: string): Promise<VocabularyWord | undefined>;
+
+  // Nuevos métodos para usuarios
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  getUserProgress(userId: number): Promise<UserProgress[]>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getVocabularyWords(): Promise<VocabularyWord[]> {
-    return await db.select().from(vocabularyWords);
+  async getVocabularyWords(userId?: number): Promise<VocabularyWord[]> {
+    let query = db.select().from(vocabularyWords);
+    if (userId) {
+      query = query.where(eq(vocabularyWords.userId, userId));
+    }
+    return await query;
   }
 
   async findWordByJapanese(japanese: string): Promise<VocabularyWord | undefined> {
@@ -24,7 +35,7 @@ export class DatabaseStorage implements IStorage {
     return word;
   }
 
-  async addVocabularyWord(word: InsertVocabularyWord): Promise<VocabularyWord> {
+  async addVocabularyWord(word: VocabularyWord): Promise<VocabularyWord> {
     const [newWord] = await db
       .insert(vocabularyWords)
       .values(word)
@@ -74,6 +85,33 @@ export class DatabaseStorage implements IStorage {
     if (!deletedWord) {
       throw new Error("Word not found");
     }
+  }
+    async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async getUserProgress(userId: number): Promise<UserProgress[]> {
+    return await db
+      .select()
+      .from(userProgress)
+      .where(eq(userProgress.userId, userId));
   }
 }
 
